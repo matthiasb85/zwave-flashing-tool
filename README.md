@@ -2,7 +2,7 @@
 This is a simple flashing tool for 5gen zwave SoCs like the ZM5101A.
 
 ```{bash}
-matti@rocinante ~/Bastelkram/z-wave/zwave-flashing-tool/build$ ./zft -h                                                                                                                                                        255 ↵  ✹main 
+matti@rocinante ~/Bastelkram/z-wave/zwave-flashing-tool/build$ ./zft -h 
 Usage: ./zft -d <device> -f <file> -o <file> -n <file> -t <timeout>
         -d <device>    Serial device
         -f <file>      Input hex file
@@ -15,6 +15,10 @@ Usage: ./zft -d <device> -f <file> -o <file> -n <file> -t <timeout>
 ```
 ## Building
 Clone this repository and change into the top level directory.
+```{bash}
+git clone https://github.com/matthiasb85/zwave-flashing-tool.git
+cd zwave-flashing-tool
+```
 Afterwards you are able to build the zft binary with the regular cmake commands.
 ```{bash}
 mkdir build
