@@ -2,13 +2,11 @@ cmake_minimum_required(VERSION 3.27)
 
 project(zwave-flashing-tool)
 
-# set(CXX_STANDARD 17)
-
-# find_package(Curses REQUIRED)
-# include_directories(${CURSES_INCLUDE_DIR})
-include_directories(inc)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SODIUM REQUIRED libsodium)
 
 file (GLOB SOURCE_FILES src/*.cpp)
 
 add_executable(zft ${SOURCE_FILES})
-target_link_libraries(zft ${CURSES_LIBRARY})
+target_include_directories(zft PUBLIC inc ${SODIUM_INCLUDE_DIRS})
+target_link_libraries(zft ${SODIUM_LIBRARIES})

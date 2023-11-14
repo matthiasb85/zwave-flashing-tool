@@ -26,6 +26,7 @@
 #include "buffer.hpp"
 #include "commands.hpp"
 #include "flasher.hpp"
+#include "nvr.hpp"
 
 constexpr unsigned int polling_timeout = 100;
 constexpr unsigned int retry_count = 50;
@@ -33,9 +34,6 @@ constexpr unsigned int connect_count = 4;
 constexpr size_t sector_size = 2048;
 constexpr size_t max_sectors = 64;
 constexpr size_t signature_bytes = 7;
-constexpr size_t lock_bytes = 9;
-constexpr size_t nvr_start = 0x09;
-constexpr size_t nvr_stop = 0xFF;
 constexpr uint32_t crc32_polynom = 0x04C11DB7;
 
 flasher::flasher(const char *serif, log_t log)
@@ -311,7 +309,7 @@ bool flasher::erase_flash() {
 }
 
 bool flasher::read_nvr(std::vector<std::byte> &nvr) {
-  for (int i = nvr_start; i <= nvr_stop; i++) {
+  for (int i = NVR_START; i <= NVR_STOP; i++) {
     buffer read_nvr(CMD_READ_NVR);
     read_nvr[2] = static_cast<std::byte>(i);
     if (!_read_cmd("Read nvr", read_nvr)) {
@@ -324,10 +322,10 @@ bool flasher::read_nvr(std::vector<std::byte> &nvr) {
 }
 
 bool flasher::set_nvr(std::vector<std::byte> &nvr) {
-  for (int i = nvr_start; i <= nvr_stop; i++) {
+  for (int i = NVR_START; i <= NVR_STOP; i++) {
     buffer set_nvr(CMD_SET_NVR);
     set_nvr[2] = static_cast<std::byte>(i);
-    set_nvr[3] = nvr.data()[i - nvr_start];
+    set_nvr[3] = nvr.data()[i - NVR_START];
     if (!_write_cmd("Set nvr", set_nvr)) {
       m_log->error() << "Failed " << set_nvr << std::endl;
       return false;
@@ -338,7 +336,7 @@ bool flasher::set_nvr(std::vector<std::byte> &nvr) {
 
 bool flasher::read_lockbits(std::vector<std::byte> &lockbits) {
   unsigned char i = 0;
-  for (i = 0; i < lock_bytes; i++) {
+  for (i = 0; i < NVR_LOCK_BYTES; i++) {
     buffer read_lockbits(CMD_READ_LOCK_BITS);
     read_lockbits[1] = std::byte{i};
     if (!_read_cmd("Read lockbits", read_lockbits)) {
@@ -357,7 +355,7 @@ bool flasher::read_lockbits(std::vector<std::byte> &lockbits) {
 
 bool flasher::set_lockbits(std::vector<std::byte> &lockbits) {
   unsigned char i = 0;
-  for (i = 0; i < lock_bytes; i++) {
+  for (i = 0; i < NVR_LOCK_BYTES; i++) {
     buffer set_lockbits(CMD_SET_LOCK_BITS);
     set_lockbits[1] = std::byte{i};
     set_lockbits[3] = lockbits.data()[i];

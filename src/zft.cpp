@@ -26,6 +26,7 @@
 
 #include "flasher.hpp"
 #include "logger.hpp"
+#include "nvr.hpp"
 
 struct {
   char *device = nullptr;
@@ -34,8 +35,9 @@ struct {
   char *nvr_if = nullptr;
   char *nvr_of = nullptr;
   unsigned char timeout = 1;
+  bool erase = false;
   bool reset = false;
-  bool con_test = false;
+  bool update_s2 = false;
   logger::log_level_t level = logger::LOG_ERROR;
 } args;
 
@@ -55,6 +57,8 @@ void print_help(char *exec_name, log_t log) {
              << "        -o <file>      Output hex file" << std::endl
              << "        -n <file>      Input NVR file" << std::endl
              << "        -m <file>      Output NVR file" << std::endl
+             << "        -e             Erase flash" << std::endl
+             << "        -s             Update NVR with S2 keypair" << std::endl
              << "        -t <timeout>   Serial receive timeout" << std::endl
              << "        -v <level>     Log level 0..4" << std::endl;
 }
@@ -129,12 +133,20 @@ bool set_nvr(log_t log, flasher &zft, std::vector<std::byte> &nvr) {
   return evaluate_call(log, "Setting NVR", "Setting NVR failed", cmd);
 }
 
-bool reset_nvr(log_t log, flasher &zft, std::vector<std::byte> &nvr) {
-  std::function<bool()> cmd = [&]() {
-    std::fill(nvr.begin(), nvr.end(), static_cast<std::byte>(0xFF));
+bool reset_nvr(log_t log, std::vector<std::byte> &nvr) {
+  std::function<bool()> cmd = [log, &nvr]() {
+    nvr::clear_application(log, nvr);
     return true;
   };
   return evaluate_call(log, "Reset NVR", "Reset NVR failed", cmd);
+}
+
+bool update_nvr_s2(log_t log, std::vector<std::byte> &nvr) {
+  std::function<bool()> cmd = [log, &nvr]() {
+    nvr::generate_and_set_s2(log, nvr);
+    return true;
+  };
+  return evaluate_call(log, "Update NVR S2", "Update NVR S2 failed", cmd);
 }
 
 bool read_lockbits(log_t log, flasher &zft, std::vector<std::byte> &lockbits) {
@@ -192,7 +204,7 @@ int main(int argc, char **argv) {
 
   bool connected = false;
   int opt;
-  while ((opt = getopt(argc, argv, "d:f:o:n:m:t:v:rh?")) != -1) {
+  while ((opt = getopt(argc, argv, "d:f:o:n:m:est:v:rh?")) != -1) {
     switch (opt) {
     case 'd':
       args.device = optarg;
@@ -208,6 +220,12 @@ int main(int argc, char **argv) {
       break;
     case 'm':
       args.nvr_of = optarg;
+      break;
+    case 'e':
+      args.erase = true;
+      break;
+    case 's':
+      args.update_s2 = true;
       break;
     case 't':
       args.timeout = static_cast<unsigned char>(atoi(optarg));
@@ -251,6 +269,7 @@ int main(int argc, char **argv) {
     FUNC_READ_NVR,
     FUNC_SET_NVR,
     FUNC_RESET_NVR,
+    FUNC_UPDATE_NVR_S2,
     FUNC_READ_LOCKBITS,
     FUNC_SET_LOCKBITS,
     FUNC_ERASE_FLASH,
@@ -268,7 +287,8 @@ int main(int argc, char **argv) {
       [log, &nvr]() { return read_in_file(log, args.nvr_if, nvr); },
       [log, &zft, &nvr]() { return read_nvr(log, zft, nvr); },
       [log, &zft, &nvr]() { return set_nvr(log, zft, nvr); },
-      [log, &zft, &nvr]() { return reset_nvr(log, zft, nvr); },
+      [log, &nvr]() { return reset_nvr(log, nvr); },
+      [log, &nvr]() { return update_nvr_s2(log, nvr); },
       [log, &zft, &lockbits]() { return read_lockbits(log, zft, lockbits); },
       [log, &zft, &lockbits]() { return set_lockbits(log, zft, lockbits); },
       [log, &zft]() { return erase_flash(log, zft); },
@@ -300,18 +320,28 @@ int main(int argc, char **argv) {
     command_list.push_back(function_table[FUNC_READ_NVR]);
   }
 
+  // Reset NVR application section
   if (args.reset) {
     command_list.push_back(function_table[FUNC_RESET_NVR]);
+  }
+
+  // Reset NVR application section
+  if (args.update_s2) {
+    command_list.push_back(function_table[FUNC_UPDATE_NVR_S2]);
   }
 
   // Flashing is requested part 1
   if (args.flash_if) {
     command_list.push_back(function_table[FUNC_READ_LOCKBITS]);
+  }
+
+  // Erase flash
+  if (args.erase || args.flash_if) {
     command_list.push_back(function_table[FUNC_ERASE_FLASH]);
   }
 
-  // Write NVR if we have an input file or flashing is requested
-  if (args.nvr_if || args.flash_if) {
+  // Write NVR if we have an input file, a modified NVR or flashing is requested
+  if (args.nvr_if || args.flash_if || args.update_s2) {
     command_list.push_back(function_table[FUNC_SET_NVR]);
   }
 
