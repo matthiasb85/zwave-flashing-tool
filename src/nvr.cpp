@@ -17,72 +17,65 @@
 
 #include <cstring>
 
+#include "crc.hpp"
 #include "nvr.hpp"
 
 #include <sodium/crypto_scalarmult_curve25519.h>
-#include <sys/random.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
-constexpr uint16_t crc16_polynom = 0x1021;
-
 void _calc_crc(log_t log, nvr_config_t *config) {
-  unsigned char *data = reinterpret_cast<unsigned char *>(config);
-  uint16_t crc16 = 0x1D0F;
-  for (size_t i = 0; i < sizeof(config->crc_protected); i++) {
-    unsigned char byte = data[i];
-    for (size_t bit = 0; bit < 8; bit++) {
-      unsigned char value =
-          static_cast<unsigned char>((byte & (1 << (7 - bit))) >> (7 - bit));
-      if (value) {
-        crc16 = (crc16 << 1) ^ crc16_polynom;
-      } else {
-        crc16 = (crc16 << 1);
-      }
-    }
-  }
-  log->debug() << "Calculated NVR CRC: " << crc16 << std::endl;
+
+  uint32_t crc16 =
+      crc::crc16(reinterpret_cast<unsigned char *>(&config->crc_protected),
+                 sizeof(config->crc_protected));
+
+  log->info() << "Calculated NVR CRC: " << crc16 << std::endl;
   config->crc[0] = ((crc16 & 0xFF00) >> 8);
   config->crc[1] = ((crc16 & 0x00FF));
 }
 
-void dump_key(log_t log, const char *msg, unsigned char *array) {
+void _dump_key(log_t log, const char *msg, unsigned char *array) {
   size_t i = 0;
-  log->debug() << msg << std::hex << static_cast<int>(array[0])
-               << static_cast<int>(array[1]) << static_cast<int>(array[2])
-               << static_cast<int>(array[3]) << static_cast<int>(array[4])
-               << static_cast<int>(array[5]) << static_cast<int>(array[6])
-               << static_cast<int>(array[7]) << static_cast<int>(array[8])
-               << static_cast<int>(array[9]) << static_cast<int>(array[10])
-               << static_cast<int>(array[11]) << static_cast<int>(array[12])
-               << static_cast<int>(array[13]) << static_cast<int>(array[14])
-               << static_cast<int>(array[15]) << static_cast<int>(array[16])
-               << static_cast<int>(array[17]) << static_cast<int>(array[18])
-               << static_cast<int>(array[19]) << static_cast<int>(array[20])
-               << static_cast<int>(array[21]) << static_cast<int>(array[22])
-               << static_cast<int>(array[23]) << static_cast<int>(array[24])
-               << static_cast<int>(array[25]) << static_cast<int>(array[26])
-               << static_cast<int>(array[27]) << static_cast<int>(array[28])
-               << static_cast<int>(array[29]) << static_cast<int>(array[30])
-               << static_cast<int>(array[31]) << std::endl;
+  log->info()
+      << msg << std::hex << "0x" << static_cast<int>(array[0]) << ", 0x"
+      << static_cast<int>(array[1]) << ", 0x" << static_cast<int>(array[2])
+      << ", 0x" << static_cast<int>(array[3]) << ", 0x"
+      << static_cast<int>(array[4]) << ", 0x" << static_cast<int>(array[5])
+      << ", 0x" << static_cast<int>(array[6]) << ", 0x"
+      << static_cast<int>(array[7]) << ", 0x" << static_cast<int>(array[8])
+      << ", 0x" << static_cast<int>(array[9]) << ", 0x"
+      << static_cast<int>(array[10]) << ", 0x" << static_cast<int>(array[11])
+      << ", 0x" << static_cast<int>(array[12]) << ", 0x"
+      << static_cast<int>(array[13]) << ", 0x" << static_cast<int>(array[14])
+      << ", 0x" << static_cast<int>(array[15]) << ", 0x"
+      << static_cast<int>(array[16]) << ", 0x" << static_cast<int>(array[17])
+      << ", 0x" << static_cast<int>(array[18]) << ", 0x"
+      << static_cast<int>(array[19]) << ", 0x" << static_cast<int>(array[20])
+      << ", 0x" << static_cast<int>(array[21]) << ", 0x"
+      << static_cast<int>(array[22]) << ", 0x" << static_cast<int>(array[23])
+      << ", 0x" << static_cast<int>(array[24]) << ", 0x"
+      << static_cast<int>(array[25]) << ", 0x" << static_cast<int>(array[26])
+      << ", 0x" << static_cast<int>(array[27]) << ", 0x"
+      << static_cast<int>(array[28]) << ", 0x" << static_cast<int>(array[29])
+      << ", 0x" << static_cast<int>(array[30]) << ", 0x"
+      << static_cast<int>(array[31]) << std::endl;
 }
 
 bool _calc_s2(log_t log, nvr_config_t *config) {
-  ssize_t r = getrandom(config->crc_protected.s2_private_key,
-                        NVR_S2_PRIVATE_KEY_SIZE, 0);
+
+  int r = syscall(SYS_getrandom, config->crc_protected.s2_private_key,
+                  NVR_S2_PRIVATE_KEY_SIZE, 0);
   if (r != 32) {
     log->error() << "Failed to initialize s2 private key" << std::endl;
     return false;
   }
 
-  r = crypto_scalarmult_curve25519_base(config->crc_protected.s2_public_key,
-                                        config->crc_protected.s2_private_key);
-  if (r != 0) {
-    log->error() << "Failed to initialize s2 public key" << std::endl;
-    return false;
-  }
+  crypto_scalarmult_curve25519_base(config->crc_protected.s2_public_key,
+                                    config->crc_protected.s2_private_key);
 
-  dump_key(log, "S2 pubkey: ", config->crc_protected.s2_public_key);
-  dump_key(log, "S2 privkey: ", config->crc_protected.s2_private_key);
+  _dump_key(log, "S2 pubkey:  ", config->crc_protected.s2_public_key);
+  _dump_key(log, "S2 privkey: ", config->crc_protected.s2_private_key);
 
   return true;
 }

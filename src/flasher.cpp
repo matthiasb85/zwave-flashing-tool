@@ -25,6 +25,7 @@
 
 #include "buffer.hpp"
 #include "commands.hpp"
+#include "crc.hpp"
 #include "flasher.hpp"
 #include "nvr.hpp"
 
@@ -34,7 +35,6 @@ constexpr unsigned int connect_count = 4;
 constexpr size_t sector_size = 2048;
 constexpr size_t max_sectors = 64;
 constexpr size_t signature_bytes = 7;
-constexpr uint32_t crc32_polynom = 0x04C11DB7;
 
 flasher::flasher(const char *serif, log_t log)
     : m_serif(serif, log), m_log(log) {}
@@ -127,20 +127,12 @@ bool flasher::_write_flash(unsigned int sector, unsigned int retry) {
 }
 
 bool flasher::_generate_crc32() {
-  uint32_t crc32 = 0xFFFFFFFF;
 
-  for (size_t i = 0; i < m_file_buffer.size(); i++) {
-    unsigned char byte = static_cast<unsigned char>(m_file_buffer.data()[i]);
-    for (size_t bit = 0; bit < 8; bit++) {
-      unsigned char value =
-          static_cast<unsigned char>((byte & (1 << (7 - bit))) >> (7 - bit));
-      if (((crc32 >> 31) & 0x00000001) != value) {
-        crc32 = (crc32 << 1) ^ crc32_polynom;
-      } else {
-        crc32 = (crc32 << 1);
-      }
-    }
-  }
+  uint32_t crc32 =
+      crc::crc32(reinterpret_cast<unsigned char *>(m_file_buffer.data()),
+                 m_file_buffer.size());
+
+  m_log->info() << "Calculated flash CRC: " << crc32 << std::endl;
 
   m_file_buffer.push_back(static_cast<std::byte>((crc32 & 0xFF000000) << 24));
   m_file_buffer.push_back(static_cast<std::byte>((crc32 & 0x00FF0000) << 16));
