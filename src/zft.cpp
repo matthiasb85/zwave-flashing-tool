@@ -16,6 +16,7 @@
 // along with zwave-flashing-tool.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <chrono>
+#include <cstring>
 #include <functional>
 #include <iostream>
 #include <thread>
@@ -141,8 +142,10 @@ bool reset_nvr(log_t log, std::vector<std::byte> &nvr) {
   return evaluate_call(log, "Reset NVR", "Reset NVR failed", cmd);
 }
 
-bool update_nvr_s2(log_t log, std::vector<std::byte> &nvr) {
-  std::function<bool()> cmd = [log, &nvr]() {
+bool update_nvr_s2(log_t log, std::vector<std::byte> &nvr,
+                   std::vector<std::byte> &lockbits) {
+  std::function<bool()> cmd = [log, &nvr, &lockbits]() {
+    memset(lockbits.data(), 0, NVR_LOCK_BYTES - 1);
     nvr::generate_and_set_s2(log, nvr);
     return true;
   };
@@ -288,7 +291,7 @@ int main(int argc, char **argv) {
       [log, &zft, &nvr]() { return read_nvr(log, zft, nvr); },
       [log, &zft, &nvr]() { return set_nvr(log, zft, nvr); },
       [log, &nvr]() { return reset_nvr(log, nvr); },
-      [log, &nvr]() { return update_nvr_s2(log, nvr); },
+      [log, &nvr, &lockbits]() { return update_nvr_s2(log, nvr, lockbits); },
       [log, &zft, &lockbits]() { return read_lockbits(log, zft, lockbits); },
       [log, &zft, &lockbits]() { return set_lockbits(log, zft, lockbits); },
       [log, &zft]() { return erase_flash(log, zft); },
