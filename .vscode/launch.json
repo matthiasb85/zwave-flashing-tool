@@ -11,7 +11,7 @@
             "target": "./build/zft",
             "cwd": "${workspaceRoot}",
             "valuesFormatting": "parseText",
-            "arguments": "-d /dev/ttyUSB0 -f ~/Bastelkram/z-wave/SDK_v6_84_00/SDK_v6_84_00/ProductPlus/Bin/SerialAPI_Controller_Bridge/serialapi_controller_bridge_ZW050x_EU.bin",
+            "arguments": "-d /dev/ttyUSB0 -s -m ./build/nvr2.bin",
             "stopAtEntry": true
         }
     ]

@@ -19,6 +19,7 @@
 #define INC_NVR
 
 #include <cstddef>
+#include <string>
 #include <vector>
 
 #include "logger.hpp"
@@ -73,6 +74,9 @@ typedef struct {
 namespace nvr {
 bool generate_and_set_s2(log_t log, std::vector<std::byte> &nvr);
 bool clear_application(log_t log, std::vector<std::byte> &nvr);
+bool set_preset(log_t log, std::vector<std::byte> &nvr,
+                std::vector<std::byte> &preset);
+bool export_preset(log_t log, std::string &of, std::vector<std::byte> &nvr);
 } // namespace nvr
 
 #endif /* INC_NVR */

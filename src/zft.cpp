@@ -35,6 +35,8 @@ struct {
   char *flash_of = nullptr;
   char *nvr_if = nullptr;
   char *nvr_of = nullptr;
+  char *nvr_p_if = nullptr;
+  char *nvr_p_of = nullptr;
   unsigned char timeout = 1;
   bool erase = false;
   bool reset = false;
@@ -51,15 +53,21 @@ void evaluate_args(log_t log) {
 
 void print_help(char *exec_name, log_t log) {
   log->msg() << "Usage: " << exec_name
-             << " -d <device> -f <file> -o <file> -n <file> -t <timeout>"
+             << " -d <device> -f <file> -o <file> -n <file> -m <file> -p "
+                "<file> -j <file> -e -s -t "
+                "<timeout> -v <level>"
              << std::endl
              << "        -d <device>    Serial device" << std::endl
              << "        -f <file>      Input hex file" << std::endl
              << "        -o <file>      Output hex file" << std::endl
              << "        -n <file>      Input NVR file" << std::endl
              << "        -m <file>      Output NVR file" << std::endl
-             << "        -e             Erase flash" << std::endl
+             << "        -p <file>      Preset input NVR file (json)"
+             << std::endl
+             << "        -j <file>      Preset output NVR file (json)"
+             << std::endl
              << "        -s             Update NVR with S2 keypair" << std::endl
+             << "        -e             Erase flash" << std::endl
              << "        -t <timeout>   Serial receive timeout" << std::endl
              << "        -v <level>     Log level 0..4" << std::endl;
 }
@@ -152,6 +160,30 @@ bool update_nvr_s2(log_t log, std::vector<std::byte> &nvr,
   return evaluate_call(log, "Update NVR S2", "Update NVR S2 failed", cmd);
 }
 
+bool preset_nvr(log_t log, std::vector<std::byte> &nvr,
+                std::vector<std::byte> &preset) {
+  std::function<bool()> cmd = [log, &nvr, &preset]() {
+    nvr::set_preset(log, nvr, preset);
+    return true;
+  };
+  return evaluate_call(log, "Apply preset to NVR", "Preset NVR failed", cmd);
+}
+
+bool export_nvr(log_t log, char *filename, std::vector<std::byte> &nvr) {
+  std::function<bool()> cmd = [log, filename, &nvr]() {
+    std::ofstream fs;
+    fs.open(filename, std::ios::binary);
+    std::string of;
+    nvr::export_preset(log, of, nvr);
+    fs << of;
+    fs.close();
+
+    return true;
+  };
+  return evaluate_call(log, "Export NVR to json", "Export NVR to json failed",
+                       cmd);
+}
+
 bool read_lockbits(log_t log, flasher &zft, std::vector<std::byte> &lockbits) {
   std::function<bool()> cmd = [&]() { return zft.read_lockbits(lockbits); };
   return evaluate_call(log, "Reading lockbits", "Reading lockbits failed", cmd);
@@ -198,6 +230,7 @@ bool dump_nvr(log_t log, std::vector<std::byte> &nvr, char *filename) {
 int main(int argc, char **argv) {
   log_t log(new logger(logger::LOG_ERROR));
   std::vector<std::byte> nvr;
+  std::vector<std::byte> preset;
   std::vector<std::byte> lockbits;
   std::vector<std::byte> i_flash;
   std::vector<std::byte> o_flash;
@@ -207,7 +240,7 @@ int main(int argc, char **argv) {
 
   bool connected = false;
   int opt;
-  while ((opt = getopt(argc, argv, "d:f:o:n:m:est:v:rh?")) != -1) {
+  while ((opt = getopt(argc, argv, "d:f:o:n:m:p:j:est:v:rh?")) != -1) {
     switch (opt) {
     case 'd':
       args.device = optarg;
@@ -223,6 +256,12 @@ int main(int argc, char **argv) {
       break;
     case 'm':
       args.nvr_of = optarg;
+      break;
+    case 'p':
+      args.nvr_p_if = optarg;
+      break;
+    case 'j':
+      args.nvr_p_of = optarg;
       break;
     case 'e':
       args.erase = true;
@@ -269,9 +308,11 @@ int main(int argc, char **argv) {
     FUNC_CONNECT = 0,
     FUNC_READ_IN_FLASH,
     FUNC_READ_IN_NVR,
+    FUNC_READ_IN_NVR_PRESET,
     FUNC_READ_NVR,
     FUNC_SET_NVR,
     FUNC_RESET_NVR,
+    FUNC_PRESET_NVR,
     FUNC_UPDATE_NVR_S2,
     FUNC_READ_LOCKBITS,
     FUNC_SET_LOCKBITS,
@@ -281,6 +322,7 @@ int main(int argc, char **argv) {
     FUNC_VERIFY_FLASH,
     FUNC_DUMP_FLASH,
     FUNC_DUMP_NVR,
+    FUNC_EXPORT_NVR,
     FUNC_MAX
   };
 
@@ -288,9 +330,11 @@ int main(int argc, char **argv) {
       [log, &zft]() { return connect(log, zft); },
       [log, &i_flash]() { return read_in_file(log, args.flash_if, i_flash); },
       [log, &nvr]() { return read_in_file(log, args.nvr_if, nvr); },
+      [log, &preset]() { return read_in_file(log, args.nvr_p_if, preset); },
       [log, &zft, &nvr]() { return read_nvr(log, zft, nvr); },
       [log, &zft, &nvr]() { return set_nvr(log, zft, nvr); },
       [log, &nvr]() { return reset_nvr(log, nvr); },
+      [log, &nvr, &preset]() { return preset_nvr(log, nvr, preset); },
       [log, &nvr, &lockbits]() { return update_nvr_s2(log, nvr, lockbits); },
       [log, &zft, &lockbits]() { return read_lockbits(log, zft, lockbits); },
       [log, &zft, &lockbits]() { return set_lockbits(log, zft, lockbits); },
@@ -300,6 +344,8 @@ int main(int argc, char **argv) {
       [log, &zft, &o_flash]() { return verify_flash(log, zft, o_flash); },
       [log, &o_flash]() { return dump_flash(log, o_flash, args.flash_of); },
       [log, &nvr]() { return dump_nvr(log, nvr, args.nvr_of); },
+      [log, &nvr]() { return export_nvr(log, args.nvr_p_of, nvr); },
+
   };
 
   std::vector<std::function<bool()>> command_list;
@@ -319,7 +365,7 @@ int main(int argc, char **argv) {
 
   // Read NVR if we want to dump it or if flashing is requested and no nvr input
   // file is defined
-  if ((args.nvr_of || args.flash_if) && !args.nvr_if) {
+  if ((args.nvr_of || args.nvr_p_of || args.flash_if) && !args.nvr_if) {
     command_list.push_back(function_table[FUNC_READ_NVR]);
   }
 
@@ -328,7 +374,12 @@ int main(int argc, char **argv) {
     command_list.push_back(function_table[FUNC_RESET_NVR]);
   }
 
-  // Reset NVR application section
+  // Apply NVR preset
+  if (args.nvr_p_if) {
+    command_list.push_back(function_table[FUNC_PRESET_NVR]);
+  }
+
+  // Update NVR with S2 keys
   if (args.update_s2) {
     command_list.push_back(function_table[FUNC_UPDATE_NVR_S2]);
   }
@@ -369,6 +420,11 @@ int main(int argc, char **argv) {
   // Dump NVR to output file
   if (args.nvr_of) {
     command_list.push_back(function_table[FUNC_DUMP_NVR]);
+  }
+
+  // Export NVR to json file
+  if (args.nvr_p_of) {
+    command_list.push_back(function_table[FUNC_EXPORT_NVR]);
   }
 
   // Run all requested commands
