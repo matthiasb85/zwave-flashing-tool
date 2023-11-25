@@ -327,23 +327,41 @@ int main(int argc, char **argv) {
   };
 
   std::function<bool()> function_table[FUNC_MAX] = {
+      // FUNC_CONNECT
       [log, &zft]() { return connect(log, zft); },
+      // FUNC_READ_IN_FLASH
       [log, &i_flash]() { return read_in_file(log, args.flash_if, i_flash); },
+      // FUNC_READ_IN_NVR
       [log, &nvr]() { return read_in_file(log, args.nvr_if, nvr); },
+      // FUNC_READ_IN_NVR_PRESET
       [log, &preset]() { return read_in_file(log, args.nvr_p_if, preset); },
+      // FUNC_READ_NVR
       [log, &zft, &nvr]() { return read_nvr(log, zft, nvr); },
+      // FUNC_SET_NVR
       [log, &zft, &nvr]() { return set_nvr(log, zft, nvr); },
+      // FUNC_RESET_NVR
       [log, &nvr]() { return reset_nvr(log, nvr); },
+      // FUNC_PRESET_NVR
       [log, &nvr, &preset]() { return preset_nvr(log, nvr, preset); },
+      // FUNC_UPDATE_NVR_S2
       [log, &nvr, &lockbits]() { return update_nvr_s2(log, nvr, lockbits); },
+      // FUNC_READ_LOCKBITS
       [log, &zft, &lockbits]() { return read_lockbits(log, zft, lockbits); },
+      // FUNC_SET_LOCKBITS
       [log, &zft, &lockbits]() { return set_lockbits(log, zft, lockbits); },
+      // FUNC_ERASE_FLASH
       [log, &zft]() { return erase_flash(log, zft); },
+      // FUNC_WRITE_FLASH
       [log, &zft, &i_flash]() { return write_flash(log, zft, i_flash); },
+      // FUNC_READ_FLASH
       [log, &zft, &o_flash]() { return read_flash(log, zft, o_flash); },
+      // FUNC_VERIFY_FLASH
       [log, &zft, &o_flash]() { return verify_flash(log, zft, o_flash); },
+      // FUNC_DUMP_FLASH
       [log, &o_flash]() { return dump_flash(log, o_flash, args.flash_of); },
+      // FUNC_DUMP_NVR
       [log, &nvr]() { return dump_nvr(log, nvr, args.nvr_of); },
+      // FUNC_EXPORT_NVR
       [log, &nvr]() { return export_nvr(log, args.nvr_p_of, nvr); },
 
   };
@@ -376,17 +394,18 @@ int main(int argc, char **argv) {
 
   // Apply NVR preset
   if (args.nvr_p_if) {
+    command_list.push_back(function_table[FUNC_READ_IN_NVR_PRESET]);
     command_list.push_back(function_table[FUNC_PRESET_NVR]);
+  }
+
+  // Read lockbits if flashing or S2 key pair generation is requested
+  if (args.flash_if || args.update_s2) {
+    command_list.push_back(function_table[FUNC_READ_LOCKBITS]);
   }
 
   // Update NVR with S2 keys
   if (args.update_s2) {
     command_list.push_back(function_table[FUNC_UPDATE_NVR_S2]);
-  }
-
-  // Flashing is requested part 1
-  if (args.flash_if) {
-    command_list.push_back(function_table[FUNC_READ_LOCKBITS]);
   }
 
   // Erase flash

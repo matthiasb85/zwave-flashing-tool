@@ -134,8 +134,6 @@ bool _get_multi_byte_json_value(log_t log, json &j, std::string key,
     ret = false;
   }
 
-  for (size_t i = 0; i < bytes; i++) {
-  }
   return ret;
 }
 
@@ -171,7 +169,7 @@ bool nvr::set_preset(log_t log, std::vector<std::byte> &nvr,
                      std::vector<std::byte> &preset) {
   nvr_config_t *config = _get_nvr_config_pointer(nvr);
   std::string input(reinterpret_cast<char *>(preset.data()), preset.size());
-  json j = input;
+  json j = json::parse(input);
 
   _get_multi_byte_json_value(log, j, "rev", 1, &(config->crc_protected.rev));
   _get_multi_byte_json_value(log, j, "c_cal", 1,
@@ -232,9 +230,9 @@ bool nvr::export_preset(log_t log, std::string &of,
        config->crc_protected.uuid[12], config->crc_protected.uuid[13],
        config->crc_protected.uuid[14], config->crc_protected.uuid[15]});
   j["usb_vid"] =
-      config->crc_protected.usb_vid[1] << 8 | config->crc_protected.usb_vid[2];
+      config->crc_protected.usb_vid[0] << 8 | config->crc_protected.usb_vid[1];
   j["usb_pid"] =
-      config->crc_protected.usb_pid[1] << 8 | config->crc_protected.usb_pid[2];
+      config->crc_protected.usb_pid[0] << 8 | config->crc_protected.usb_pid[1];
   j["tx_cal_1"] = config->crc_protected.tx_cal_1;
   j["tx_cal_2"] = config->crc_protected.tx_cal_2;
 
