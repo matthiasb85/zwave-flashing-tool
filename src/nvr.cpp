@@ -199,6 +199,9 @@ bool nvr::set_preset(log_t log, std::vector<std::byte> &nvr,
   _get_multi_byte_json_value(log, j, "tx_cal_2", 1,
                              &(config->crc_protected.tx_cal_2));
 
+  // Re-calculate crc
+  _calc_crc(log, config);
+
   return true;
 }
 
@@ -239,4 +242,8 @@ bool nvr::export_preset(log_t log, std::string &of,
   of = j.dump(4);
 
   return true;
+}
+
+unsigned char nvr::get_revision(std::vector<std::byte> &nvr) {
+  return _get_nvr_config_pointer(nvr)->crc_protected.rev;
 }

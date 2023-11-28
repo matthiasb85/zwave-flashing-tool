@@ -161,9 +161,13 @@ bool update_nvr_s2(log_t log, std::vector<std::byte> &nvr,
 }
 
 bool preset_nvr(log_t log, std::vector<std::byte> &nvr,
-                std::vector<std::byte> &preset) {
-  std::function<bool()> cmd = [log, &nvr, &preset]() {
+                std::vector<std::byte> &preset,
+                std::vector<std::byte> &lockbits) {
+  std::function<bool()> cmd = [log, &nvr, &preset, &lockbits]() {
     nvr::set_preset(log, nvr, preset);
+    if (nvr::get_revision(nvr) == 2) {
+      update_nvr_s2(log, nvr, lockbits);
+    }
     return true;
   };
   return evaluate_call(log, "Apply preset to NVR", "Preset NVR failed", cmd);
@@ -342,7 +346,9 @@ int main(int argc, char **argv) {
       // FUNC_RESET_NVR
       [log, &nvr]() { return reset_nvr(log, nvr); },
       // FUNC_PRESET_NVR
-      [log, &nvr, &preset]() { return preset_nvr(log, nvr, preset); },
+      [log, &nvr, &preset, &lockbits]() {
+        return preset_nvr(log, nvr, preset, lockbits);
+      },
       // FUNC_UPDATE_NVR_S2
       [log, &nvr, &lockbits]() { return update_nvr_s2(log, nvr, lockbits); },
       // FUNC_READ_LOCKBITS
@@ -383,7 +389,8 @@ int main(int argc, char **argv) {
 
   // Read NVR if we want to dump it or if flashing is requested and no nvr input
   // file is defined
-  if ((args.nvr_of || args.nvr_p_of || args.flash_if) && !args.nvr_if) {
+  if ((args.nvr_of || args.nvr_p_if || args.nvr_p_of || args.flash_if) &&
+      !args.nvr_if) {
     command_list.push_back(function_table[FUNC_READ_NVR]);
   }
 
@@ -392,15 +399,15 @@ int main(int argc, char **argv) {
     command_list.push_back(function_table[FUNC_RESET_NVR]);
   }
 
+  // Read lockbits if flashing or nvr modification is requested
+  if (args.flash_if || args.update_s2 || args.nvr_p_if) {
+    command_list.push_back(function_table[FUNC_READ_LOCKBITS]);
+  }
+
   // Apply NVR preset
   if (args.nvr_p_if) {
     command_list.push_back(function_table[FUNC_READ_IN_NVR_PRESET]);
     command_list.push_back(function_table[FUNC_PRESET_NVR]);
-  }
-
-  // Read lockbits if flashing or S2 key pair generation is requested
-  if (args.flash_if || args.update_s2) {
-    command_list.push_back(function_table[FUNC_READ_LOCKBITS]);
   }
 
   // Update NVR with S2 keys

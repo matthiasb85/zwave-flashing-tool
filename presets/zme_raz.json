@@ -1,9 +1,9 @@
 {
     "c_cal": 2,
-    "nvm_cs": 0,
-    "nvm_page_size": 65535,
-    "nvm_size": 65535,
-    "nvm_type": 255,
+    "nvm_cs": 4,
+    "nvm_page_size": 256,
+    "nvm_size": 256,
+    "nvm_type": 2,
     "pin_swap": 1,
     "rev": 2,
     "saw_bBandwidth": 255,

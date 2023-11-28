@@ -77,6 +77,7 @@ bool clear_application(log_t log, std::vector<std::byte> &nvr);
 bool set_preset(log_t log, std::vector<std::byte> &nvr,
                 std::vector<std::byte> &preset);
 bool export_preset(log_t log, std::string &of, std::vector<std::byte> &nvr);
+unsigned char get_revision(std::vector<std::byte> &nvr);
 } // namespace nvr
 
 #endif /* INC_NVR */
